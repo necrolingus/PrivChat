@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrivChat | End-to-End Encrypted Private Messaging</title>
+  <meta name="description" content="Self-hosted, zero-knowledge, end-to-end encrypted private chat application with 12-word identity phrase and 6-word channel keys.">
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/styles.css?v=6">
+</head>
+<body>
+
+  <!-- ==================== GLOBAL NOTIFICATION CENTER (visible on ALL screens) ==================== -->
+  <div id="global-notification-center" class="global-notification-center hidden">
+    <button type="button" id="btn-notification-bell" class="btn-icon-bell" title="Notification Center">
+      <i class="fa-solid fa-bell"></i>
+      <span id="notification-unread-badge" class="unread-badge hidden">0</span>
+    </button>
+    <div id="notification-popover" class="notification-popover glass-card hidden">
+      <div class="notification-popover-header">
+        <span><i class="fa-solid fa-bell"></i> Notifications</span>
+        <button type="button" id="btn-clear-notifications" class="btn-link-xs">Clear All</button>
+      </div>
+      <div id="notification-list" class="notification-list">
+        <p class="empty-notifications">No new notifications</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST CONTAINER (bottom-right floating toasts) ==================== -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+
+    <!-- ==================== STEP 1: IDENTITY LANDING SCREEN ==================== -->
+    <div id="screen-identity" class="screen active">
+      <div class="card glass-card identity-card">
+        <div class="brand-header">
+          <div class="shield-logo">
+            <i class="fa-solid fa-user-shield"></i>
+          </div>
+          <h1>PrivChat</h1>
+          <p class="subtitle">Zero-Knowledge End-to-End Encrypted Messenger</p>
+        </div>
+
+        <!-- Mode Toggle: New vs Returning -->
+        <div class="tab-toggle">
+          <button id="btn-tab-new" class="tab-btn active"><i class="fa-solid fa-wand-magic-sparkles"></i> I'm New</button>
+          <button id="btn-tab-returning" class="tab-btn"><i class="fa-solid fa-key"></i> Returning User</button>
+        </div>
+
+        <!-- NEW USER FORM -->
+        <div id="form-new-user" class="auth-form">
+          <div class="info-banner warning-banner">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>This 12-word phrase is your private identity key. Save it securely! If you lose it, your chats are gone forever.</span>
+          </div>
+
+          <div class="field-group">
+            <label>Your 12-Word Identity Phrase</label>
+            <div class="seed-box">
+              <div id="seed-words-grid" class="seed-grid"></div>
+              <button id="btn-copy-seed" class="btn-icon-label"><i class="fa-regular fa-copy"></i> Copy Identity Phrase</button>
+              <button id="btn-regen-seed" class="btn-icon-label"><i class="fa-solid fa-arrows-rotate"></i> Generate New Identity</button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="new-friendly-name">Friendly Display Name</label>
+            <input type="text" id="new-friendly-name" placeholder="e.g. Alice, CipherUser (optional)" maxlength="30">
+            <span class="help-text">Your display name is saved server-side for your device identity.</span>
+          </div>
+
+          <div class="field-group">
+            <label for="session-persistence-new">Session Security Preference</label>
+            <select id="session-persistence-new" class="select-input">
+              <option value="persistent">Remember me on this device (7 days)</option>
+              <option value="session">Session only (log out when browser closes)</option>
+            </select>
+          </div>
+
+          <button id="btn-confirm-new" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-shield-halved"></i> Save Identity & Continue
+          </button>
+        </div>
+
+        <!-- RETURNING USER FORM -->
+        <div id="form-returning-user" class="auth-form hidden">
+          <div class="field-group">
+            <label for="input-12-words">Enter Your 12-Word Identity Phrase</label>
+            <textarea id="input-12-words" rows="3" placeholder="e.g. abandon ability able about above absent..."></textarea>
+          </div>
+
+          <div class="field-group">
+            <label for="returning-friendly-name">Friendly Display Name</label>
+            <input type="text" id="returning-friendly-name" placeholder="Loading saved name..." maxlength="30">
+            <span class="help-text">Your display name is loaded from your server profile.</span>
+          </div>
+
+          <div class="field-group">
+            <label for="session-persistence-returning">Session Security Preference</label>
+            <select id="session-persistence-returning" class="select-input">
+              <option value="persistent">Remember me on this device (7 days)</option>
+              <option value="session">Session only (log out when browser closes)</option>
+            </select>
+          </div>
+
+          <button id="btn-login-returning" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-lock-open"></i> Unlock My Identity
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ==================== STEP 2: CHANNEL SELECTION SCREEN ==================== -->
+    <div id="screen-channel" class="screen">
+      <div class="card glass-card channel-card">
+        
+        <div class="screen-header">
+          <div class="header-top-bar">
+            <div class="user-badge">
+              <i class="fa-solid fa-circle-user"></i>
+              <span id="user-display-name">Anonymous</span>
+              <span id="user-device-short" class="device-tag">ID: ...</span>
+              <button id="btn-change-identity" class="btn-link" title="Switch Identity"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+          </div>
+
+          <h2>Join or Create a Secure Channel</h2>
+          <p class="subtitle">Channels are end-to-end encrypted using a 6-word channel key</p>
+        </div>
+
+        <!-- SUB TABS: CREATE VS JOIN MODE -->
+        <div class="tabs-nav margin-bottom-md">
+          <button id="btn-tab-create-channel" class="tab-btn active"><i class="fa-solid fa-plus-circle"></i> Create New Channel</button>
+          <button id="btn-tab-join-channel" class="tab-btn"><i class="fa-solid fa-right-to-bracket"></i> Join Existing Channel</button>
+        </div>
+
+        <!-- MODE 1: CREATE NEW CHANNEL PANEL -->
+        <div id="panel-create-channel" class="channel-panel">
+          <div class="field-group">
+            <label>Generated 6-Word Channel Key</label>
+            <div class="seed-box">
+              <div id="channel-words-grid" class="seed-grid seed-grid-6"></div>
+              <button type="button" id="btn-copy-6-words" class="btn-icon-label"><i class="fa-regular fa-copy"></i> Copy Channel Key</button>
+              <button type="button" id="btn-gen-6-words" class="btn-icon-label"><i class="fa-solid fa-arrows-rotate"></i> Generate New Key</button>
+            </div>
+            <span class="help-text">Share this 6-word channel key with friends so they can join your encrypted channel.</span>
+          </div>
+
+          <div class="field-group">
+            <label for="input-create-pin">Initial One-Time Invite PIN</label>
+            <input type="text" id="input-create-pin" placeholder="e.g. INV-8F92A3 (Auto-generated or custom)" autocomplete="off">
+            <span class="help-text">This single-use PIN will be created for the first person you invite. You can also generate more PINs inside the channel.</span>
+          </div>
+
+          <button id="btn-submit-create-channel" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-plus"></i> Create & Enter Channel
+          </button>
+        </div>
+
+        <!-- MODE 2: JOIN EXISTING CHANNEL PANEL -->
+        <div id="panel-join-channel" class="channel-panel hidden">
+          <div class="field-group">
+            <label for="input-6-words">6-Word Channel Key</label>
+            <input type="text" id="input-6-words" placeholder="e.g. lumber once gossip flame torch brief" autocomplete="off">
+            <span class="help-text">Enter the 6-word channel key shared by the channel owner.</span>
+          </div>
+
+          <div class="field-group">
+            <label for="input-invite-code">One-Time Invite PIN</label>
+            <input type="text" id="input-invite-code" placeholder="e.g. INV-8F92A3 or tester123" autocomplete="off">
+            <span class="help-text">Required: Enter the single-use invite PIN provided by the channel owner.</span>
+          </div>
+
+          <button id="btn-submit-join-channel" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-door-open"></i> Join Encrypted Channel
+          </button>
+        </div>
+
+        <div id="channel-error-msg" class="error-banner hidden"></div>
+        <div id="channel-pending-msg" class="info-banner warning-banner hidden">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>Join request submitted! Waiting for the channel owner to approve your access...</span>
+        </div>
+
+        <!-- MY ACTIVE CHANNELS DASHBOARD -->
+        <div id="my-channels-section" class="my-channels-section">
+          <h3><i class="fa-solid fa-list-check"></i> My Active Channels</h3>
+          <div id="my-channels-list" class="my-channels-list">
+            <p class="empty-channels">No active channels yet. Join or create one above!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ==================== STEP 3: E2EE CHAT WINDOW SCREEN ==================== -->
+    <div id="screen-chat" class="screen">
+      <div class="chat-layout glass-card">
+        
+        <!-- CHAT HEADER -->
+        <header class="chat-header">
+          <div class="header-left">
+            <div class="channel-info">
+              <span class="security-lock"><i class="fa-solid fa-lock"></i> E2EE</span>
+              <h3 id="chat-channel-title">Channel: ******</h3>
+              <span id="owner-badge" class="badge owner-badge hidden"><i class="fa-solid fa-crown"></i> Owner</span>
+            </div>
+            <div class="phrase-preview">
+              <span id="chat-phrase-mask">•••••• •••••• •••••• ••••••</span>
+              <button id="btn-toggle-phrase" class="btn-icon" title="Toggle 6-word channel key visibility"><i class="fa-solid fa-eye"></i></button>
+              <button id="btn-copy-channel-phrase" class="btn-icon" title="Copy 6-word channel key"><i class="fa-regular fa-copy"></i></button>
+            </div>
+          </div>
+
+          <div class="header-right">
+            <button id="btn-back-dashboard" class="btn btn-secondary btn-sm" title="Return to channel dashboard">
+              <i class="fa-solid fa-list-ul"></i> My Channels
+            </button>
+            <button id="btn-view-members" class="btn btn-secondary btn-sm">
+              <i class="fa-solid fa-users"></i> Members (<span id="members-count">1</span>)
+            </button>
+            <button id="btn-leave-channel" class="btn btn-danger btn-sm">
+              <i class="fa-solid fa-door-open"></i> Leave Channel
+            </button>
+          </div>
+        </header>
+
+        <!-- MESSAGES FEED (FIXED HEIGHT CONTAINER AREA) -->
+        <main id="chat-messages-container" class="messages-container">
+          <div class="encryption-notice">
+            <i class="fa-solid fa-shield-halved"></i>
+            <p>Messages and photos in this channel are end-to-end encrypted with AES-256-GCM. Not even the server can read them.</p>
+          </div>
+        </main>
+
+        <!-- CHAT FOOTER / INPUT BAR -->
+        <footer class="chat-footer">
+          <form id="form-send-message" class="message-form">
+            <input type="file" id="input-photo-file" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden">
+            
+            <button type="button" id="btn-trigger-photo" class="btn-icon-action" title="Send Photo (MIME Checked & E2E Encrypted)">
+              <i class="fa-solid fa-paperclip"></i>
+            </button>
+
+            <div class="input-wrapper">
+              <input type="text" id="input-chat-text" placeholder="Type an encrypted message..." autocomplete="off">
+              <div id="photo-preview-bar" class="photo-preview-bar hidden">
+                <span id="photo-preview-name">photo.png</span>
+                <button type="button" id="btn-cancel-photo" class="btn-icon-xs"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+            </div>
+
+            <button type="submit" id="btn-send-message" class="btn btn-primary btn-send">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </form>
+        </footer>
+
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- ==================== MEMBERS & OWNER KICK MODAL ==================== -->
+  <div id="modal-members" class="modal-backdrop hidden">
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-users"></i> Active Channel Members</h3>
+        <button id="btn-close-modal" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div id="owner-invite-controls" class="owner-invite-controls hidden" style="margin-bottom: 1rem;">
+          <div class="field-group" style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.8rem;">Custom One-Time PIN or Auto Code</label>
+            <div style="display: flex; gap: 0.4rem;">
+              <input type="text" id="input-modal-custom-pin" placeholder="e.g. tester123 (or leave blank for random)" style="padding: 0.4rem 0.6rem; font-size: 0.85rem;" autocomplete="off">
+              <button type="button" id="btn-create-invite" class="btn btn-primary btn-sm" style="white-space: nowrap;">
+                <i class="fa-solid fa-key"></i> Create Invite
+              </button>
+            </div>
+          </div>
+          <div id="generated-invite-box" class="info-banner warning-banner hidden" style="margin-top: 0.5rem; justify-content: space-between; align-items: center;">
+            <span>Active Single-Use PIN: <strong id="new-invite-code-text">INV-XXXXXX</strong></span>
+            <button type="button" id="btn-copy-invite-code" class="btn-icon-label"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <hr class="divider" style="margin-top: 1rem;">
+        </div>
+        <div id="owner-pending-section" class="pending-section hidden">
+          <h4><i class="fa-solid fa-user-clock"></i> Pending Join Requests</h4>
+          <ul id="pending-requests-list" class="members-list"></ul>
+          <hr class="divider">
+        </div>
+        <p class="help-text">Below are active members connected to this channel.</p>
+        <ul id="members-list" class="members-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CUSTOM CONFIRM MODAL (replaces browser confirm()) ==================== -->
+  <div id="modal-confirm" class="modal-backdrop hidden">
+    <div class="modal-content glass-card modal-confirm-content">
+      <div class="modal-header">
+        <h3 id="confirm-modal-title"><i class="fa-solid fa-triangle-exclamation"></i> Confirm Action</h3>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-modal-message" class="confirm-modal-message">Are you sure?</p>
+        <div class="confirm-modal-actions">
+          <button id="btn-confirm-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="btn-confirm-ok" class="btn btn-danger">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CUSTOM PROMPT MODAL (replaces browser prompt()) ==================== -->
+  <div id="modal-prompt" class="modal-backdrop hidden">
+    <div class="modal-content glass-card modal-confirm-content">
+      <div class="modal-header">
+        <h3 id="prompt-modal-title"><i class="fa-solid fa-keyboard"></i> Enter Value</h3>
+      </div>
+      <div class="modal-body">
+        <p id="prompt-modal-message" class="confirm-modal-message"></p>
+        <input type="text" id="prompt-modal-input" placeholder="" autocomplete="off" style="margin-bottom: 1rem;">
+        <div class="confirm-modal-actions">
+          <button id="btn-prompt-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="btn-prompt-ok" class="btn btn-primary">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Socket.io client script -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Client Crypto Script -->
+  <script src="/js/crypto.js"></script>
+  <!-- Main Application Logic -->
+  <script src="/js/app.js"></script>
+</body>
+</html>

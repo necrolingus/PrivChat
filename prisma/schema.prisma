@@ -1,0 +1,77 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Channel {
+  channelId        String          @id @map("channel_id")
+  ownerDeviceId    String          @map("owner_device_id")
+  requiresApproval Boolean         @default(true) @map("requires_approval")
+  privacyMode      String          @default("restricted") @map("privacy_mode")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  members          ChannelMember[]
+  messages         Message[]
+  invites          ChannelInvite[]
+
+  @@map("tbl_chatapp_channels")
+}
+
+model ChannelMember {
+  id               Int      @id @default(autoincrement())
+  channelId        String   @map("channel_id")
+  deviceId         String   @map("device_id")
+  status           String   @default("active") @map("status") // 'pending', 'active', 'left', 'kicked', 'denied'
+  publicSigningKey String?  @db.Text @map("public_signing_key")
+  joinedAt         DateTime @default(now()) @map("joined_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  channel Channel @relation(fields: [channelId], references: [channelId], onDelete: Cascade)
+
+  @@unique([channelId, deviceId])
+  @@map("tbl_chatapp_channel_members")
+}
+
+model Message {
+  messageId        String   @id @default(uuid()) @map("message_id")
+  channelId        String   @map("channel_id")
+  senderDeviceId   String   @map("sender_device_id")
+  senderName       String   @map("sender_name")
+  encryptedContent String   @db.Text @map("encrypted_content")
+  iv               String   @map("iv")
+  mimeType         String   @default("text/plain") @map("mime_type")
+  signature        String?  @db.Text @map("signature")
+  epoch            Int      @default(1) @map("epoch")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  channel Channel @relation(fields: [channelId], references: [channelId], onDelete: Cascade)
+
+  @@map("tbl_chatapp_messages")
+}
+
+model ChannelInvite {
+  id         String   @id @default(uuid()) @map("id")
+  inviteCode String   @map("invite_code")
+  channelId  String   @map("channel_id")
+  isUsed     Boolean  @default(false) @map("is_used")
+  usedBy     String?  @map("used_by_device_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  channel Channel @relation(fields: [channelId], references: [channelId], onDelete: Cascade)
+
+  @@unique([channelId, inviteCode])
+  @@map("tbl_chatapp_invites")
+}
+
+model UserProfile {
+  deviceId     String   @id @map("device_id")
+  friendlyName String   @map("friendly_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("tbl_chatapp_profiles")
+}
+
