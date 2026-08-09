@@ -11,7 +11,9 @@ describe('Functional Tests - Channel Management & User Workflows', () => {
   const memberDeviceId = 'jest-func-member-' + Date.now();
   const channelPhrase = 'jest functional test phrase moon shadow';
   const channelId = sha256Hex(channelPhrase);
-  let inviteCode = '';
+  beforeAll(() => {
+    process.env.PRIVATE_SERVER = 'false';
+  });
 
   test('Functional 1: User A creates a new channel and becomes active owner', async () => {
     const res = await request(app)

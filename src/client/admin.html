@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrivChat | Admin Control Center</title>
+
+  <!-- FontAwesome & Google Fonts -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styling -->
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .admin-container {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 2.25rem 1.75rem;
+    }
+
+    .admin-login-card {
+      max-width: 620px;
+      margin: 2.5rem auto 0 auto !important;
+      padding: 3rem 2.75rem !important;
+    }
+
+    .admin-dashboard-card {
+      padding: 2.75rem 2.5rem !important;
+      margin-top: 1.5rem !important;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.25rem;
+      margin-top: 1.75rem;
+    }
+
+    .metric-card {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.5rem 1.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .metric-value {
+      font-size: 2.1rem;
+      font-weight: 700;
+      color: #f43f5e;
+      line-height: 1;
+    }
+
+    .metric-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    .token-create-card {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px dashed rgba(244, 63, 94, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem 2rem;
+      margin-bottom: 2.25rem;
+    }
+
+    .token-table-container {
+      overflow-x: auto;
+      margin-top: 1.25rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .token-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    .token-table th,
+    .token-table td {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .token-table th {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-one-time {
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-forever {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-revoked {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-active {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-consumed {
+      background: rgba(107, 114, 128, 0.2);
+      color: #9ca3af;
+      border: 1px solid rgba(107, 114, 128, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Background Glow FX -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container admin-container">
+    <!-- Header -->
+    <header class="app-header" style="justify-content: space-between; margin-bottom: 2.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div class="logo">
+        <i class="fa-solid fa-user-shield"></i>
+        <span>PrivChat Admin</span>
+      </div>
+      <div id="admin-status-bar" style="display: flex; align-items: center; gap: 1rem;">
+        <span id="server-mode-badge" class="badge member-badge"><i class="fa-solid fa-circle-notch fa-spin"></i>
+          Checking Mode...</span>
+        <button id="btn-admin-logout" class="btn btn-secondary btn-sm hidden"><i
+            class="fa-solid fa-right-from-bracket"></i> Logout</button>
+      </div>
+    </header>
+
+    <!-- ADMIN LOGIN CARD (PRE-LOGIN) -->
+    <main id="card-admin-login" class="card admin-login-card">
+      <div class="card-header text-center" style="margin-bottom: 2rem;">
+        <h2 style="font-size: 1.75rem; margin-bottom: 0.6rem;"><i class="fa-solid fa-lock"></i> Private Server Authentication</h2>
+        <p style="font-size: 0.92rem; color: var(--text-muted); line-height: 1.5;">Enter your 32+ character <code>PRIVATE_SERVER_KEY</code> to access the server admin control center.</p>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.75rem;">
+        <label for="input-admin-key" style="margin-bottom: 0.65rem;">Server Admin Key (minimum 32 characters)</label>
+        <div style="position: relative; width: 100%;">
+          <input type="password" id="input-admin-key" placeholder="Enter PRIVATE_SERVER_KEY..." autocomplete="off" style="padding-right: 3.25rem;">
+          <button type="button" id="btn-toggle-admin-key" class="btn btn-secondary btn-sm"
+            style="position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); padding: 0.4rem 0.65rem; height: 34px; display: inline-flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="admin-login-error" class="alert alert-danger margin-top-sm hidden"></div>
+
+      <button id="btn-admin-login" class="btn btn-primary width-full" style="margin-top: 1.75rem; padding: 0.95rem 1.5rem; font-size: 1rem;">
+        <i class="fa-solid fa-key"></i> Authenticate & Enter Admin Panel
+      </button>
+    </main>
+
+    <!-- ADMIN DASHBOARD (POST-LOGIN) -->
+    <main id="card-admin-dashboard" class="card admin-dashboard-card hidden">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 1.25rem;">
+        <div>
+          <h2 style="font-size: 1.65rem; margin-bottom: 0.4rem;"><i class="fa-solid fa-sliders"></i> Server Invite Token Management</h2>
+          <p style="font-size: 0.9rem; color: var(--text-muted);">Generate, monitor, and invalidate server access tokens for private instances.</p>
+        </div>
+        <button id="btn-refresh-tokens" class="btn btn-secondary btn-sm" style="padding: 0.6rem 1rem;"><i class="fa-solid fa-arrows-rotate"></i>
+          Refresh</button>
+      </div>
+
+      <!-- Metrics Summary -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Total Tokens Created</span>
+          <span id="metric-total" class="metric-value">0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Active Tokens</span>
+          <span id="metric-active" class="metric-value" style="color: #60a5fa;">0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Revoked / Invalidated</span>
+          <span id="metric-revoked" class="metric-value" style="color: #ef4444;">0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Forever Tokens</span>
+          <span id="metric-forever" class="metric-value" style="color: #10b981;">0</span>
+        </div>
+      </div>
+
+      <!-- Token Generation Form -->
+      <div class="token-create-card">
+        <h3 style="font-size: 1.1rem; margin-bottom: 1.25rem; color: #f8fafc;"><i class="fa-solid fa-plus-circle"></i> Generate New Server Invite Token</h3>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; align-items: end;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="select-token-type">Token Persistence Type</label>
+            <select id="select-token-type">
+              <option value="one_time">1-Time Use Token (Consumed on first registration)</option>
+              <option value="forever">Forever Token (Reusable for multiple members)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="input-custom-token">Custom Token Code (Optional)</label>
+            <input type="text" id="input-custom-token" placeholder="e.g. SRV-TEAM123 (or auto-generate)">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0;">
+            <button id="btn-create-token" class="btn btn-primary width-full" style="padding: 0.9rem 1.25rem;">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Server Token
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Token Management Table -->
+      <div style="margin-top: 2.25rem;">
+        <h3 style="font-size: 1.1rem; margin-bottom: 1rem; color: #f8fafc;"><i class="fa-solid fa-list-check"></i> Generated Server Tokens</h3>
+
+        <div class="token-table-container">
+          <table class="token-table">
+            <thead>
+              <tr>
+                <th>Token Code</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Used By (Device & Name)</th>
+                <th>Usage Count</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="token-table-body">
+              <tr>
+                <td colspan="7" class="text-center" style="color: var(--text-muted); padding: 2rem;">
+                  <i class="fa-solid fa-spinner fa-spin"></i> Loading server tokens...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Custom Confirm Modal for Revocation -->
+  <div id="modal-admin-confirm" class="modal-backdrop hidden">
+    <div class="card modal-content modal-confirm-content">
+      <h3 id="admin-confirm-title" class="margin-bottom-sm"><i class="fa-solid fa-triangle-exclamation"></i> Revoke
+        Token</h3>
+      <p id="admin-confirm-message" class="confirm-modal-message">Are you sure you want to invalidate this token?</p>
+      <div class="confirm-modal-actions">
+        <button id="btn-admin-confirm-cancel" class="btn btn-secondary btn-sm">Cancel</button>
+        <button id="btn-admin-confirm-ok" class="btn btn-danger btn-sm">Revoke Token</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/admin.js"></script>
+</body>
+
+</html>

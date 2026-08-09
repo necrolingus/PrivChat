@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedPhotoBuffer: null,
     selectedPhotoMime: null,
     selectedPhotoName: '',
+    isPrivateServer: false,
   };
 
   // DOM Screens
@@ -57,6 +58,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const returningFriendlyName = document.getElementById('returning-friendly-name');
   const sessionPersistenceReturning = document.getElementById('session-persistence-returning');
   const btnLoginReturning = document.getElementById('btn-login-returning');
+  const containerServerTokenNew = document.getElementById('container-server-token-new');
+  const inputServerTokenNew = document.getElementById('input-server-token-new');
+  const containerServerTokenReturning = document.getElementById('container-server-token-returning');
+  const inputServerTokenReturning = document.getElementById('input-server-token-returning');
 
   // Global Notification Center Elements (fixed position, always visible)
   const globalNotificationCenter = document.getElementById('global-notification-center');
@@ -163,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (screenName === 'channel') {
-      generateNewChannelPhrase();
+      generateNewChannelPhrase(); // async, fire-and-forget
       renderMyActiveChannels();
     }
   }
@@ -265,6 +270,18 @@ document.addEventListener('DOMContentLoaded', () => {
    * Check local/session storage and fetch server-persisted user profile
    */
   async function checkSavedIdentity() {
+    try {
+      const configRes = await fetch('/api/admin/config');
+      const configData = await configRes.json();
+      state.isPrivateServer = configData.isPrivateServer;
+      if (configData.isPrivateServer) {
+        if (containerServerTokenNew) containerServerTokenNew.classList.remove('hidden');
+        if (containerServerTokenReturning) containerServerTokenReturning.classList.remove('hidden');
+      }
+    } catch (e) {
+      console.error('Error checking server mode:', e);
+    }
+
     let savedSeed = sessionStorage.getItem('privchat_identity_seed');
     let mode = 'session';
 
@@ -274,12 +291,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (savedSeed) {
-      const derivedDeviceId = await window.PrivateCrypto.deriveDeviceId(savedSeed);
-      const profile = await fetchServerProfile(derivedDeviceId);
-      await setIdentity(savedSeed, profile.friendlyName || 'Anonymous', mode);
-      showScreen('channel');
+      const devId = await window.PrivateCrypto.deriveDeviceId(savedSeed);
+      const profile = await fetchServerProfile(devId);
+
+      const success = await setIdentity(savedSeed, profile.friendlyName || 'Anonymous', mode);
+      if (success) {
+        showScreen('channel');
+      } else {
+        showScreen('identity');
+      }
     } else {
-      generateNewIdentitySeed();
+      await generateNewIdentitySeed();
       showScreen('identity');
     }
   }
@@ -296,15 +318,24 @@ document.addEventListener('DOMContentLoaded', () => {
     return { friendlyName: 'Anonymous' };
   }
 
-  async function saveServerProfile(deviceId, name) {
+  async function saveServerProfile(deviceId, name, token = '') {
     try {
-      await fetch('/api/profile/save', {
+      const serverToken = token || (inputServerTokenNew ? inputServerTokenNew.value.trim() : '') || (inputServerTokenReturning ? inputServerTokenReturning.value.trim() : '');
+      const res = await fetch('/api/profile/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId, friendlyName: name }),
+        body: JSON.stringify({ deviceId, friendlyName: name, serverToken }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Private Server authorization failed.', 'alert');
+        return false;
+      }
+      return true;
     } catch (e) {
       console.error('Save server profile error:', e);
+      showToast('Network error: Unable to save profile on server.', 'alert');
+      return false;
     }
   }
 
@@ -312,21 +343,70 @@ document.addEventListener('DOMContentLoaded', () => {
     return state.persistenceMode === 'persistent' ? localStorage : sessionStorage;
   }
 
-  function generateNewIdentitySeed() {
-    const phrase = window.PrivateCrypto.generateRandomPhrase(12);
-    state.identityPhrase = phrase;
-    renderSeedChips(phrase, seedWordsGrid);
+  async function generateNewIdentitySeed() {
+    const serverToken = inputServerTokenNew ? inputServerTokenNew.value.trim() : '';
+
+    if (state.isPrivateServer && !serverToken) {
+      state.identityPhrase = '';
+      if (seedWordsGrid) {
+        seedWordsGrid.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; color: #f59e0b; padding: 1.25rem; font-size: 0.88rem; background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245, 158, 11, 0.3); border-radius: var(--radius-md);">
+            <i class="fa-solid fa-key" style="font-size: 1.2rem; margin-bottom: 0.4rem; display: block;"></i>
+            This server is in <strong>Private Mode</strong>.<br>Enter your <strong>Server Invite Token</strong> above and click <strong>Verify & Generate</strong> to create your 12-word identity key.
+          </div>
+        `;
+      }
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/generate/identity-phrase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serverToken }),
+      });
+      const data = await res.json();
+      if (res.ok && data.phrase) {
+        state.identityPhrase = data.phrase;
+        renderSeedChips(data.phrase, seedWordsGrid);
+        showToast('12-Word Identity Key generated & verified successfully!', 'success');
+        return;
+      }
+
+      state.identityPhrase = '';
+      if (seedWordsGrid) {
+        seedWordsGrid.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; color: #f43f5e; padding: 1rem; font-size: 0.88rem; background: rgba(244, 63, 94, 0.08); border: 1px dashed rgba(244, 63, 94, 0.3); border-radius: var(--radius-md);">
+            <i class="fa-solid fa-circle-exclamation"></i> ${data.error || 'Failed to generate unique identity phrase from server.'}
+          </div>
+        `;
+      }
+      showToast(data.error || 'Failed to generate unique identity phrase from server.', 'alert');
+    } catch (e) {
+      console.error('Server-side identity phrase generation failed:', e);
+      state.identityPhrase = '';
+      showToast('Network error: Unable to generate unique identity phrase from server.', 'alert');
+    }
   }
 
-  function generateNewChannelPhrase() {
-    const phrase = window.PrivateCrypto.generateRandomPhrase(6);
-    state.generated6Words = phrase;
-    renderSeedChips(phrase, channelWordsGrid);
-
-    // Auto-generate initial single-use Invite PIN (e.g. INV-8F92A3)
-    const randomHex = Math.random().toString(36).substring(2, 8).toUpperCase();
-    state.autoInvitePin = `INV-${randomHex}`;
-    inputCreatePin.value = state.autoInvitePin;
+  async function generateNewChannelPhrase() {
+    try {
+      const res = await fetch('/api/generate/channel-phrase', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.phrase) {
+        state.generated6Words = data.phrase;
+        renderSeedChips(data.phrase, channelWordsGrid);
+        // Auto-generate initial single-use Invite PIN
+        const randomHex = Math.random().toString(36).substring(2, 8).toUpperCase();
+        state.autoInvitePin = `INV-${randomHex}`;
+        inputCreatePin.value = state.autoInvitePin;
+        return;
+      }
+      addNotification(data.error || 'Failed to generate unique channel key from server.', 'alert');
+    } catch (e) {
+      console.error('Server-side channel phrase generation failed:', e);
+      addNotification('Network error: Unable to generate unique channel key from server.', 'alert');
+    }
   }
 
   function renderSeedChips(phrase, targetGridElement) {
@@ -342,13 +422,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function setIdentity(phrase, name, persistenceMode = 'persistent') {
-    state.identityPhrase = phrase.trim().toLowerCase();
-    state.deviceId = await window.PrivateCrypto.deriveDeviceId(state.identityPhrase);
-    state.signingKeyPair = await window.PrivateCrypto.deriveSigningKeyPair(state.identityPhrase);
+    const cleanPhrase = (phrase || '').trim().toLowerCase();
+    if (!cleanPhrase || cleanPhrase.split(/\s+/).length !== 12) {
+      showToast('Please generate or enter a valid 12-word identity phrase.', 'alert');
+      return false;
+    }
+
+    const devId = await window.PrivateCrypto.deriveDeviceId(cleanPhrase);
+
+    const isSaved = await saveServerProfile(devId, name.trim());
+    if (!isSaved) {
+      return false; // Stop! Access denied on Private Server or profile save failed
+    }
+
+    state.identityPhrase = cleanPhrase;
+    state.deviceId = devId;
+    state.signingKeyPair = await window.PrivateCrypto.deriveSigningKeyPair(cleanPhrase);
     state.friendlyName = name.trim() || 'Anonymous';
     state.persistenceMode = persistenceMode;
-
-    await saveServerProfile(state.deviceId, state.friendlyName);
 
     localStorage.removeItem('privchat_identity_seed');
     localStorage.removeItem('privchat_friendly_name');
@@ -362,6 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     userDisplayName.textContent = state.friendlyName;
     userDeviceShort.textContent = `ID: ${state.deviceId.substring(0, 8)}...`;
+    return true;
   }
 
   function saveChannelToVault(channelId, channelPhrase) {
@@ -398,6 +490,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function handleVerifyAndGenerateToken() {
+    const val = inputServerTokenNew ? inputServerTokenNew.value.trim() : '';
+
+    if (state.isPrivateServer) {
+      if (!val) {
+        showToast('Please enter your Server Invite Token first.', 'alert');
+        return;
+      }
+
+      // Explicit verification against dedicated rate-limited token verification endpoint
+      try {
+        const verifyRes = await fetch('/api/generate/verify-server-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serverToken: val }),
+        });
+        const verifyData = await verifyRes.json();
+
+        if (!verifyRes.ok) {
+          state.identityPhrase = '';
+          if (seedWordsGrid) {
+            seedWordsGrid.innerHTML = `
+              <div style="grid-column: 1 / -1; text-align: center; color: #f43f5e; padding: 1rem; font-size: 0.88rem; background: rgba(244, 63, 94, 0.08); border: 1px dashed rgba(244, 63, 94, 0.3); border-radius: var(--radius-md);">
+                <i class="fa-solid fa-circle-exclamation"></i> ${verifyData.error || 'Server invite token verification failed.'}
+              </div>
+            `;
+          }
+          showToast(verifyData.error || 'Server invite token verification failed.', 'alert');
+          return;
+        }
+      } catch (err) {
+        console.error('Token verification error:', err);
+        showToast('Network error while verifying server token.', 'alert');
+        return;
+      }
+    }
+
+    await generateNewIdentitySeed();
+  }
+
   function setupEventListeners() {
     // Identity Tabs
     btnTabNew.addEventListener('click', () => {
@@ -414,15 +546,41 @@ document.addEventListener('DOMContentLoaded', () => {
       formNewUser.classList.add('hidden');
     });
 
-    btnRegenSeed.addEventListener('click', () => generateNewIdentitySeed());
+    btnRegenSeed.addEventListener('click', async () => await generateNewIdentitySeed());
     btnCopySeed.addEventListener('click', () => {
+      if (!state.identityPhrase) {
+        showToast('No 12-word identity phrase generated yet. Enter your Server Invite Token above and click Verify & Generate.', 'alert');
+        return;
+      }
       navigator.clipboard.writeText(state.identityPhrase);
       showToast('12-Word Identity Phrase copied to clipboard!', 'success');
     });
 
+    const btnVerifyServerToken = document.getElementById('btn-verify-server-token');
+    if (btnVerifyServerToken) {
+      btnVerifyServerToken.addEventListener('click', async () => {
+        await handleVerifyAndGenerateToken();
+      });
+    }
+
+    if (inputServerTokenNew) {
+      inputServerTokenNew.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          await handleVerifyAndGenerateToken();
+        }
+      });
+    }
+
     btnConfirmNew.addEventListener('click', async () => {
-      await setIdentity(state.identityPhrase, newFriendlyName.value, sessionPersistenceNew.value);
-      showScreen('channel');
+      if (!state.identityPhrase) {
+        showToast('Please enter a valid Server Invite Token and click Verify & Generate to create your identity phrase.', 'alert');
+        return;
+      }
+      const success = await setIdentity(state.identityPhrase, newFriendlyName.value, sessionPersistenceNew.value);
+      if (success) {
+        showScreen('channel');
+      }
     });
 
     // Auto-fetch profile name on returning identity phrase input blur
@@ -431,8 +589,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (phrase.split(/\s+/).length === 12) {
         const derivedDevId = await window.PrivateCrypto.deriveDeviceId(phrase);
         const profile = await fetchServerProfile(derivedDevId);
-        if (profile && profile.friendlyName) {
-          returningFriendlyName.value = profile.friendlyName;
+        if (profile) {
+          if (profile.friendlyName) {
+            returningFriendlyName.value = profile.friendlyName;
+          }
+          if (state.isPrivateServer && containerServerTokenReturning) {
+            if (profile.authorizedOnServer) {
+              containerServerTokenReturning.classList.add('hidden');
+            } else {
+              containerServerTokenReturning.classList.remove('hidden');
+            }
+          }
         }
       }
     });
@@ -441,11 +608,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const phrase = input12Words.value.trim().toLowerCase();
       const words = phrase.split(/\s+/);
       if (words.length !== 12) {
-        showChannelError('Please enter a valid 12-word identity phrase.');
+        showToast('Please enter a valid 12-word identity phrase.', 'alert');
         return;
       }
-      await setIdentity(phrase, returningFriendlyName.value, sessionPersistenceReturning.value);
-      showScreen('channel');
+      const success = await setIdentity(phrase, returningFriendlyName.value, sessionPersistenceReturning.value);
+      if (success) {
+        showScreen('channel');
+      }
     });
 
     // LOG OUT: uses custom confirm modal instead of browser confirm()
@@ -457,7 +626,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (confirmed) {
         localStorage.clear();
         sessionStorage.clear();
-        generateNewIdentitySeed();
+        await generateNewIdentitySeed();
         showScreen('identity');
       }
     });
@@ -497,11 +666,63 @@ document.addEventListener('DOMContentLoaded', () => {
       panelCreateChannel.classList.add('hidden');
     });
 
-    btnGen6Words.addEventListener('click', () => generateNewChannelPhrase());
+    btnGen6Words.addEventListener('click', async () => await generateNewChannelPhrase());
     btnCopy6Words.addEventListener('click', () => {
       navigator.clipboard.writeText(state.generated6Words);
       showToast('6-Word Channel Key copied to clipboard!', 'success');
     });
+
+    const btnCopyInitialPin = document.getElementById('btn-copy-initial-pin');
+    if (btnCopyInitialPin) {
+      btnCopyInitialPin.addEventListener('click', () => {
+        const pin = inputCreatePin ? (inputCreatePin.value.trim() || state.autoInvitePin) : '';
+        if (!pin) {
+          showToast('No initial invite PIN available.', 'alert');
+          return;
+        }
+        navigator.clipboard.writeText(pin);
+        showToast('Initial One-Time Invite PIN copied to clipboard!', 'success');
+      });
+    }
+
+    const btnCopyCreateBackupBundle = document.getElementById('btn-copy-create-backup-bundle');
+    if (btnCopyCreateBackupBundle) {
+      btnCopyCreateBackupBundle.addEventListener('click', async () => {
+        const pin = inputCreatePin ? (inputCreatePin.value.trim() || state.autoInvitePin) : '';
+        const channelId = await window.PrivateCrypto.sha256Hex(state.generated6Words);
+        const backupText = `==================================================\nPRIVCHAT SECURE CHANNEL BACKUP BUNDLE\n==================================================\nChannel ID: ${channelId}\n6-Word Channel Key: ${state.generated6Words}\nInitial Invite PIN: ${pin || 'N/A'}\n==================================================\nCRITICAL WARNING: PrivChat is 100% Zero-Knowledge. Save this backup! You will need this 6-word key to unlock Channel ID ${channelId.substring(0, 16)}... on Incognito or new devices.`;
+        navigator.clipboard.writeText(backupText);
+        showToast('Full Channel Backup Bundle copied to clipboard!', 'success');
+      });
+    }
+
+    const btnCopyChatBackupBundle = document.getElementById('btn-copy-chat-backup-bundle');
+    if (btnCopyChatBackupBundle) {
+      btnCopyChatBackupBundle.addEventListener('click', () => {
+        const backupText = `==================================================\nPRIVCHAT SECURE CHANNEL BACKUP\n==================================================\nChannel ID: ${state.channelId}\n6-Word Channel Key: ${state.channelPhrase}\nRole: ${state.isOwner ? 'Owner' : 'Member'}\n==================================================\nCRITICAL WARNING: Save this backup! You will need this 6-word key to unlock Channel ID ${state.channelId.substring(0, 16)}... on Incognito or new devices.`;
+        navigator.clipboard.writeText(backupText);
+        showToast('Channel Backup Info copied to clipboard!', 'success');
+      });
+    }
+
+    const btnExportVaultBackup = document.getElementById('btn-export-vault-backup');
+    if (btnExportVaultBackup) {
+      btnExportVaultBackup.addEventListener('click', () => {
+        const vault = getChannelVault();
+        const keys = Object.keys(vault);
+        if (keys.length === 0) {
+          showToast('No unlocked channels currently saved in your Local Vault.', 'alert');
+          return;
+        }
+        let backupText = `==================================================\nPRIVCHAT KEY VAULT BACKUP FILE\nExported: ${new Date().toLocaleString()}\n==================================================\n\n`;
+        keys.forEach((cId, idx) => {
+          backupText += `[${idx + 1}] Channel ID: ${cId}\n    6-Word Key: ${vault[cId]}\n\n`;
+        });
+        backupText += `==================================================\nKEEP THIS BACKUP SECURE! Match the Channel ID to find the 6-word key for Incognito logins.`;
+        navigator.clipboard.writeText(backupText);
+        showToast(`Exported ${keys.length} unlocked channel key(s) to clipboard!`, 'success');
+      });
+    }
 
     // Submit Create Channel
     btnSubmitCreateChannel.addEventListener('click', () => {
@@ -689,17 +910,17 @@ document.addEventListener('DOMContentLoaded', () => {
           if (storedPhrase) {
             joinChannel(storedPhrase);
           } else {
-            // Use custom prompt modal instead of browser prompt()
+            // Explicit Zero-Knowledge Unlock Prompt with exact Channel ID
             const userEntered = await showPromptModal(
-              'Enter Channel Key',
-              `Enter the 6-word channel key for Channel ID ${ch.channelId.substring(0, 12)}...`,
+              'Unlock Encrypted Channel',
+              `Enter the 6-word channel key to unlock Channel ID:\n${ch.channelId}\n\n(Tip: Match Channel ID ${ch.channelId.substring(0, 12)}... in your saved backups to find your 6-word key.)`,
               'e.g. lumber once gossip flame torch brief'
             );
             if (userEntered) {
               const enteredPhrase = userEntered.trim().toLowerCase();
               const derivedId = await window.PrivateCrypto.sha256Hex(enteredPhrase);
               if (derivedId !== ch.channelId) {
-                showChannelError('Incorrect 6-word channel key! The entered phrase does not match.');
+                showChannelError('Incorrect 6-word channel key! The entered phrase does not match this Channel ID.');
                 return;
               }
               joinChannel(enteredPhrase);

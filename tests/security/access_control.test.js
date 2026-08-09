@@ -15,6 +15,10 @@ describe('Security & Penetration Tests - Access Control & Attack Mitigation', ()
   const channelId = sha256Hex(channelPhrase);
   let inviteCode = '';
 
+  beforeAll(() => {
+    process.env.PRIVATE_SERVER = 'false';
+  });
+
   afterAll(async () => {
     await prisma.$disconnect();
   });
@@ -152,5 +156,25 @@ describe('Security & Penetration Tests - Access Control & Attack Mitigation', ()
       .send({ channelId, ownerDeviceId, customPin: inviteCode });
     expect(reactivateRes.status).toBe(400);
     expect(reactivateRes.body.error).toContain('consumed');
+  });
+
+  test('Security 11: Server-Side Unique Phrase Generation Endpoints return valid 12-word and 6-word phrases', async () => {
+    // Test 12-word identity phrase generation
+    const idRes = await request(app)
+      .post('/api/generate/identity-phrase');
+    expect(idRes.status).toBe(200);
+    expect(idRes.body.success).toBe(true);
+    expect(idRes.body.phrase).toBeDefined();
+    const idWords = idRes.body.phrase.split(' ');
+    expect(idWords).toHaveLength(12);
+
+    // Test 6-word channel phrase generation
+    const chRes = await request(app)
+      .post('/api/generate/channel-phrase');
+    expect(chRes.status).toBe(200);
+    expect(chRes.body.success).toBe(true);
+    expect(chRes.body.phrase).toBeDefined();
+    const chWords = chRes.body.phrase.split(' ');
+    expect(chWords).toHaveLength(6);
   });
 });

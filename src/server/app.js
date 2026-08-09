@@ -10,6 +10,8 @@ require('dotenv').config();
 
 const channelRoutes = require('./routes/channels');
 const profileRoutes = require('./routes/profile');
+const phraseGeneratorRoutes = require('./routes/phraseGenerator');
+const adminRoutes = require('./routes/admin');
 const registerChatHandlers = require('./sockets/chatHandler');
 
 const app = express();
@@ -49,6 +51,13 @@ app.use('/api', globalLimiter);
 // API Routes
 app.use('/api/channels', channelRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/generate', phraseGeneratorRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Dedicated Admin Web Interface route
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/admin.html'));
+});
 
 // Static frontend assets (served at root '/' and at '/src/client')
 app.use(express.static(path.join(__dirname, '../client')));
@@ -64,9 +73,21 @@ registerChatHandlers(io);
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
+  const isPrivateServer = String(process.env.PRIVATE_SERVER || 'false').toLowerCase() === 'true';
+
+  if (isPrivateServer) {
+    const key = process.env.PRIVATE_SERVER_KEY || '';
+    if (!/^[a-zA-Z0-9]{32,}$/.test(key)) {
+      console.error(`\n❌ ERROR: PRIVATE_SERVER is true, but PRIVATE_SERVER_KEY must be an alphanumeric string of at least 32 characters in .env!`);
+      console.error(`Current length: ${key.length}. Server start aborted.\n`);
+      process.exit(1);
+    }
+  }
+
   server.listen(PORT, () => {
     console.log(`=======================================================`);
     console.log(`🔒 E2EE Secure Chat Server running on http://localhost:${PORT}`);
+    console.log(`🔒 Server Mode: ${isPrivateServer ? 'PRIVATE (Invite Token Required)' : 'PUBLIC'}`);
     console.log(`=======================================================`);
   });
 }

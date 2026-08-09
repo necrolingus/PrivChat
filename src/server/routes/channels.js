@@ -126,10 +126,44 @@ router.post('/create-invite', async (req, res) => {
  */
 router.post('/join', async (req, res) => {
   try {
-    const { channelId, deviceId, publicSigningKey, inviteCode } = req.body;
+    const { channelId, deviceId, publicSigningKey, inviteCode, serverToken: tokenInput } = req.body;
 
     if (!channelId || !deviceId) {
       return res.status(400).json({ error: 'channelId and deviceId are required' });
+    }
+
+    const isPrivate = String(process.env.PRIVATE_SERVER || 'false').toLowerCase() === 'true';
+    if (isPrivate) {
+      const profile = await prisma.userProfile.findUnique({ where: { deviceId } });
+      const candidateToken = tokenInput || req.headers['x-server-token'];
+
+      if (!profile || !profile.authorizedOnServer) {
+        if (!candidateToken) {
+          return res.status(403).json({ error: 'Private Server: Valid server invite token is required to access this server.' });
+        }
+
+        const tokenCode = String(candidateToken).trim().toUpperCase();
+        const srvToken = await prisma.serverToken.findUnique({ where: { token: tokenCode } });
+
+        if (!srvToken || srvToken.isRevoked || (srvToken.type === 'one_time' && srvToken.usedCount >= 1)) {
+          return res.status(403).json({ error: 'Private Server: Invalid or consumed server invite token.' });
+        }
+
+        await prisma.serverToken.update({
+          where: { id: srvToken.id },
+          data: {
+            usedCount: { increment: 1 },
+            lastUsedBy: deviceId,
+            isRevoked: srvToken.type === 'one_time' ? true : srvToken.isRevoked,
+          },
+        });
+
+        await prisma.userProfile.upsert({
+          where: { deviceId },
+          update: { authorizedOnServer: true },
+          create: { deviceId, friendlyName: 'Anonymous', authorizedOnServer: true },
+        });
+      }
     }
 
     let channel = await prisma.channel.findUnique({

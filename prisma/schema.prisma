@@ -67,11 +67,25 @@ model ChannelInvite {
 }
 
 model UserProfile {
-  deviceId     String   @id @map("device_id")
-  friendlyName String   @map("friendly_name")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  deviceId           String   @id @map("device_id")
+  friendlyName       String   @map("friendly_name")
+  authorizedOnServer Boolean  @default(false) @map("authorized_on_server")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("tbl_chatapp_profiles")
+}
+
+model ServerToken {
+  id         String   @id @default(uuid()) @map("id")
+  token      String   @unique @map("token")
+  type       String   @map("type") // 'one_time', 'forever'
+  isRevoked  Boolean  @default(false) @map("is_revoked")
+  usedCount  Int      @default(0) @map("used_count")
+  lastUsedBy String?  @map("last_used_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("tbl_chatapp_server_tokens")
 }
 
