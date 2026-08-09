@@ -6,12 +6,13 @@ PrivChat is a high-security, zero-knowledge real-time messaging application desi
 
 ## Table of Contents
 1. [Architecture & How the App Works](#architecture--how-the-app-works)
-2. [Complete Cryptographic Data Flow & Database Mapping Guide](#complete-cryptographic-data-flow--database-mapping-guide)
-3. [Private Server Mode & Admin Control Center (/admin)](#private-server-mode--admin-control-center-admin)
-4. [Security Model & User Privacy Guarantees](#security-model--user-privacy-guarantees)
-5. [High-Level API Reference](#high-level-api-reference)
-6. [Installation & Setup Guide](#installation--setup-guide)
-7. [Automated Testing & Code Coverage](#automated-testing--code-coverage-jest--supertest)
+2. [Visual Feature Tour & Screenshots](#visual-feature-tour--screenshots)
+3. [Complete Cryptographic Data Flow & Database Mapping Guide](#complete-cryptographic-data-flow--database-mapping-guide)
+4. [Private Server Mode & Admin Control Center (/admin)](#private-server-mode--admin-control-center-admin)
+5. [Security Model & User Privacy Guarantees](#security-model--user-privacy-guarantees)
+6. [High-Level API Reference](#high-level-api-reference)
+7. [Installation & Setup Guide](#installation--setup-guide)
+8. [Automated Testing & Code Coverage](#automated-testing--code-coverage-jest--supertest)
 
 ---
 
@@ -42,6 +43,26 @@ PrivChat operates on a **Zero-Knowledge Architecture**. Encryption keys are deri
 |  - ZERO ACCESS to plaintext data or private keys                                 |
 +-----------------------------------------------------------------------------------+
 ```
+
+---
+
+## Visual Feature Tour & Screenshots
+
+### 1. User Identity & Server Token Registration
+Users enter their Server Invite Token (in Private Server Mode) and generate or restore their 12-word cryptographic identity phrase.
+![User Identity Registration](docs/images/identity_registration.png)
+
+### 2. Channel Creation & Critical Backup Warning
+When creating a secure channel, users are presented with their 6-word channel key, initial One-Time Invite PIN, and a 1-click **Copy Full Backup Bundle** tool.
+![Channel Creation & Critical Backup Warning](docs/images/channel_creation_backup.png)
+
+### 3. End-to-End Encrypted Messaging Workspace
+Real-time chat workspace featuring AES-256-GCM encryption, ECDSA digital signatures, photo attachment sharing, member management, and key vault backup exports.
+![Encrypted Messaging Workspace](docs/images/chat_workspace.png)
+
+### 4. Admin Control Center (`/admin`)
+Server administrators authenticate using a minimum 32-character `PRIVATE_SERVER_KEY` to generate, monitor, and revoke single-use and forever access tokens.
+![Admin Control Center](docs/images/admin_control_center.png)
 
 ---
 
