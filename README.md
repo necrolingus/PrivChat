@@ -1,5 +1,7 @@
 # PrivChat — Zero-Knowledge End-to-End Encrypted Private Messaging Platform
 
+## ⚠️ PrivChat is still be BETA and might have some unintended issues ⚠️
+
 PrivChat is a high-security, zero-knowledge real-time messaging application designed for absolute privacy. It provides client-side End-to-End Encryption (E2EE) for text messages and photo uploads, server-side CSPRNG unique phrase generation with collision safety, configurable Private Server Mode (`PRIVATE_SERVER=true`), an Admin Control Center (`/admin`), single-use owner invites, ECDSA message signing, global Notification Center, and owner join approvals.
 
 ---
